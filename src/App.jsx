@@ -14,15 +14,13 @@ function App() {
   const [error, setError] = useState(null);
 
   // Settings
-  // Hardcoded for direct access as requested.
-  const [falKey] = useState('c560ca3f-6a17-4b2e-80c3-973c5309b73e:e62fef7d14311dc315bcef251c082e6a');
+  const [falKey] = useState(import.meta.env.VITE_FAL_KEY || '');
   
   // OpenAI Settings
-  // Hardcoded for direct access as requested.
-  const [openaiKey] = useState('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');
+  const [openaiKey] = useState(import.meta.env.VITE_OPENAI_KEY || '');
 
   // Telegram Settings
-  const telegramBotToken = '8617936883:AAHJcFNrC7hJNpKBmKRhaJ9XmdzumnC6Nus';
+  const telegramBotToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN || '';
   
   // Lütfen otomatik gönderim yapılmasını istediğiniz Telegram ID'leri bu listeye ekleyin.
   // Virgülle ayırarak birden fazla ID ekleyebilirsiniz. Örn: ['123', '456']
