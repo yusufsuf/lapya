@@ -1,6 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Upload, Image as ImageIcon, Sparkles, X, Camera, Fingerprint, Download, Lock } from 'lucide-react';
-import OpenAI from 'openai';
 import * as falAI from '@fal-ai/client';
 import './App.css';
 
@@ -160,18 +159,24 @@ function App() {
 
         contentItems.unshift({ type: "text", text: systemPromptText });
 
-        const openai = new OpenAI({ apiKey: openaiKey, dangerouslyAllowBrowser: true });
-        const aiResponse = await openai.chat.completions.create({
-          model: "gpt-4o",
-          messages: [
-            {
-              role: "user",
-              content: contentItems,
-            },
-          ],
-          max_tokens: 300,
+        const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${openaiKey}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            messages: [{ role: 'user', content: contentItems }],
+            max_tokens: 300,
+          }),
         });
-        generatedPrompt = aiResponse.choices[0].message.content.trim();
+        if (!aiRes.ok) {
+          const errBody = await aiRes.text();
+          throw new Error(`OpenAI API ${aiRes.status}: ${errBody}`);
+        }
+        const aiData = await aiRes.json();
+        generatedPrompt = aiData.choices[0].message.content.trim();
         console.log("OpenAI Generated Prompt:", generatedPrompt);
       } catch (err) {
         console.error("OpenAI Error:", err);
