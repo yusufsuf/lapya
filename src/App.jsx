@@ -60,6 +60,32 @@ function App() {
     }
   };
 
+  const compressImage = (file, maxSizeMB = 3) => {
+    return new Promise((resolve) => {
+      const maxBytes = maxSizeMB * 1024 * 1024;
+      if (file.size <= maxBytes) {
+        resolve(file);
+        return;
+      }
+      const img = document.createElement('img');
+      const canvas = document.createElement('canvas');
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        img.onload = () => {
+          const ratio = Math.sqrt(maxBytes / file.size);
+          canvas.width = Math.round(img.width * ratio);
+          canvas.height = Math.round(img.height * ratio);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => {
+            resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+          }, 'image/jpeg', 0.85);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleGenerate = async () => {
     if (!falKey) {
       setError('Lütfen bir Fal AI API Anahtarı girin.');
@@ -83,18 +109,28 @@ function App() {
       falAI.fal.config({
         credentials: falKey
       });
-      
-      // Step 1: Upload images to Fal Storage to get public URLs
-      const outerUrl = await falAI.fal.storage.upload(outerShoe.file);
-      
+
+      // Step 1: Compress and upload images to Fal Storage
+      setError(null);
+      let outerFile = await compressImage(outerShoe.file);
+      const outerUrl = await falAI.fal.storage.upload(outerFile).catch(e => {
+        throw new Error('Görsel yüklenemedi (FAL Storage). Lütfen bağlantınızı kontrol edin. (' + e.message + ')');
+      });
+
       let innerUrl = null;
       if (innerShoe) {
-        innerUrl = await falAI.fal.storage.upload(innerShoe.file);
+        let innerFile = await compressImage(innerShoe.file);
+        innerUrl = await falAI.fal.storage.upload(innerFile).catch(e => {
+          throw new Error('İç ayakkabı görseli yüklenemedi. (' + e.message + ')');
+        });
       }
-      
+
       let referenceUrl = null;
       if (referenceImg) {
-        referenceUrl = await falAI.fal.storage.upload(referenceImg.file);
+        let refFile = await compressImage(referenceImg.file);
+        referenceUrl = await falAI.fal.storage.upload(refFile).catch(e => {
+          throw new Error('Referans görseli yüklenemedi. (' + e.message + ')');
+        });
       }
 
       // Step 2: Use OpenAI to analyze the images and create a detailed prompt
@@ -139,7 +175,7 @@ function App() {
         console.log("OpenAI Generated Prompt:", generatedPrompt);
       } catch (err) {
         console.error("OpenAI Error:", err);
-        throw new Error("OpenAI tarafında bir sorun oluştu veya API anahtarı hatalı.");
+        throw new Error("OpenAI bağlantı hatası: " + (err.message || 'API anahtarını kontrol edin.'));
       }
 
       // Step 3: Call the exact Nano Banana 2 API Endpoint
@@ -160,6 +196,8 @@ function App() {
              update.logs.map((log) => log.message).forEach(console.log);
           }
         },
+      }).catch(e => {
+        throw new Error('Görsel oluşturma hatası (FAL AI): ' + e.message);
       });
 
       // Assume output returns an image url field named 'image' or an array of 'images'
