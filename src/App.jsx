@@ -14,9 +14,6 @@ function App() {
 
   // Settings
   const [falKey] = useState(import.meta.env.VITE_FAL_KEY || '');
-  
-  // OpenAI Settings
-  const [openaiKey] = useState(import.meta.env.VITE_OPENAI_KEY || '');
 
   // Telegram Settings
   const telegramBotToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN || '';
@@ -90,10 +87,6 @@ function App() {
       setError('Lütfen bir Fal AI API Anahtarı girin.');
       return;
     }
-    if (!openaiKey) {
-      setError('Lütfen OpenAI API Anahtarınızı girin.');
-      return;
-    }
     if (!outerShoe) {
       setError('En azından Dış Ayakkabı görüntüsü yüklenmelidir.');
       return;
@@ -159,24 +152,17 @@ function App() {
 
         contentItems.unshift({ type: "text", text: systemPromptText });
 
-        const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        const aiRes = await fetch('/api/generate-prompt', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${openaiKey}`,
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o',
-            messages: [{ role: 'user', content: contentItems }],
-            max_tokens: 300,
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: [{ role: 'user', content: contentItems }] }),
         });
         if (!aiRes.ok) {
-          const errBody = await aiRes.text();
-          throw new Error(`OpenAI API ${aiRes.status}: ${errBody}`);
+          const errBody = await aiRes.json();
+          throw new Error(`OpenAI API hatası: ${errBody.error}`);
         }
         const aiData = await aiRes.json();
-        generatedPrompt = aiData.choices[0].message.content.trim();
+        generatedPrompt = aiData.prompt;
         console.log("OpenAI Generated Prompt:", generatedPrompt);
       } catch (err) {
         console.error("OpenAI Error:", err);
