@@ -316,8 +316,7 @@ function App() {
               <div className="loading-overlay">
                 <div className="scanner"></div>
                 <div className="loader-spinner"></div>
-                <div className="loading-text">Yapay zeka analiz ediyor ve giydiriyor...</div>
-                <div style={{fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.5rem'}}>Önce OpenAI yorumluyor, ardından Nano Banana 2 uyguluyor</div>
+                <div className="loading-text">Görseliniz Hazırlanıyor...</div>
               </div>
             )}
             
