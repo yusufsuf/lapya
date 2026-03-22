@@ -3,11 +3,24 @@ import { Image as ImageIcon, Sparkles, X, Camera, Fingerprint, Download } from '
 import * as falAI from '@fal-ai/client';
 import './App.css';
 
-const RESOLUTION_OPTIONS = [
-  { label: '1K', width: 1024, height: 1024 },
-  { label: '2K', width: 2048, height: 2048 },
-  { label: '4K', width: 4096, height: 4096 },
+const RESOLUTION_OPTIONS = ['1K', '2K', '4K'];
+const RESOLUTION_BASE = { '1K': 1024, '2K': 2048, '4K': 4096 };
+
+const ASPECT_OPTIONS = [
+  { label: '16:9', w: 16, h: 9 },
+  { label: '9:16', w: 9, h: 16 },
+  { label: 'Kare', w: 1, h: 1 },
 ];
+
+function getImageSize(resolution, aspect) {
+  const base = RESOLUTION_BASE[resolution];
+  const { w, h } = aspect;
+  if (w >= h) {
+    return { width: base, height: Math.round(base * h / w) };
+  } else {
+    return { width: Math.round(base * w / h), height: base };
+  }
+}
 
 function App() {
   const [innerShoe, setInnerShoe] = useState(null);
@@ -15,6 +28,7 @@ function App() {
   const [referenceImg, setReferenceImg] = useState(null);
   const [customPrompt, setCustomPrompt] = useState('');
   const [resolution, setResolution] = useState('1K');
+  const [aspect, setAspect] = useState(ASPECT_OPTIONS[2]); // Kare default
 
   const [resultImg, setResultImg] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -157,7 +171,7 @@ function App() {
       }
 
       // Step 3: Generate image
-      const res = RESOLUTION_OPTIONS.find(r => r.label === resolution);
+      const imageSize = getImageSize(resolution, aspect);
       const imageUrls = [outerUrl];
       if (innerUrl) imageUrls.push(innerUrl);
       if (referenceUrl) imageUrls.push(referenceUrl);
@@ -165,7 +179,7 @@ function App() {
       const inputs = {
         prompt: generatedPrompt,
         image_urls: imageUrls,
-        image_size: { width: res.width, height: res.height },
+        image_size: imageSize,
       };
 
       const result = await falAI.fal.subscribe('fal-ai/nano-banana-2/edit', {
@@ -272,30 +286,45 @@ function App() {
             />
           </div>
 
-          {/* Resolution Selector */}
-          <div style={{ marginTop: '1.25rem' }}>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Görüntü Çözünürlüğü</p>
-            <div style={{ display: 'flex', gap: '0', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', overflow: 'hidden' }}>
-              {RESOLUTION_OPTIONS.map((opt) => (
-                <button
-                  key={opt.label}
-                  onClick={() => setResolution(opt.label)}
-                  style={{
-                    flex: 1,
-                    padding: '0.6rem',
-                    border: 'none',
-                    borderRight: opt.label !== '4K' ? '1px solid rgba(255,255,255,0.12)' : 'none',
-                    background: resolution === opt.label ? 'var(--accent-color, #3b82f6)' : 'transparent',
-                    color: resolution === opt.label ? '#fff' : 'var(--text-secondary)',
-                    fontWeight: resolution === opt.label ? '600' : '400',
-                    cursor: 'pointer',
-                    fontSize: '0.9rem',
-                    transition: 'background 0.2s',
-                  }}
-                >
-                  {opt.label}
-                </button>
-              ))}
+          {/* Resolution + Aspect Selector */}
+          <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem' }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Çözünürlük</p>
+              <div style={{ display: 'flex', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', overflow: 'hidden' }}>
+                {RESOLUTION_OPTIONS.map((opt, i) => (
+                  <button
+                    key={opt}
+                    onClick={() => setResolution(opt)}
+                    style={{
+                      flex: 1, padding: '0.6rem', border: 'none',
+                      borderRight: i < RESOLUTION_OPTIONS.length - 1 ? '1px solid rgba(255,255,255,0.12)' : 'none',
+                      background: resolution === opt ? 'var(--accent-color, #3b82f6)' : 'transparent',
+                      color: resolution === opt ? '#fff' : 'var(--text-secondary)',
+                      fontWeight: resolution === opt ? '600' : '400',
+                      cursor: 'pointer', fontSize: '0.9rem', transition: 'background 0.2s',
+                    }}
+                  >{opt}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Boyut</p>
+              <div style={{ display: 'flex', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', overflow: 'hidden' }}>
+                {ASPECT_OPTIONS.map((opt, i) => (
+                  <button
+                    key={opt.label}
+                    onClick={() => setAspect(opt)}
+                    style={{
+                      flex: 1, padding: '0.6rem', border: 'none',
+                      borderRight: i < ASPECT_OPTIONS.length - 1 ? '1px solid rgba(255,255,255,0.12)' : 'none',
+                      background: aspect.label === opt.label ? 'var(--accent-color, #3b82f6)' : 'transparent',
+                      color: aspect.label === opt.label ? '#fff' : 'var(--text-secondary)',
+                      fontWeight: aspect.label === opt.label ? '600' : '400',
+                      cursor: 'pointer', fontSize: '0.9rem', transition: 'background 0.2s',
+                    }}
+                  >{opt.label}</button>
+                ))}
+              </div>
             </div>
           </div>
 
