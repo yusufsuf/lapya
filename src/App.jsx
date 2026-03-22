@@ -4,23 +4,12 @@ import * as falAI from '@fal-ai/client';
 import './App.css';
 
 const RESOLUTION_OPTIONS = ['1K', '2K', '4K'];
-const RESOLUTION_BASE = { '1K': 1024, '2K': 2048, '4K': 4096 };
 
 const ASPECT_OPTIONS = [
-  { label: '16:9', w: 16, h: 9 },
-  { label: '9:16', w: 9, h: 16 },
-  { label: 'Kare', w: 1, h: 1 },
+  { label: '16:9', value: '16:9' },
+  { label: '9:16', value: '9:16' },
+  { label: 'Kare', value: '1:1' },
 ];
-
-function getImageSize(resolution, aspect) {
-  const base = RESOLUTION_BASE[resolution];
-  const { w, h } = aspect;
-  if (w >= h) {
-    return { width: base, height: Math.round(base * h / w) };
-  } else {
-    return { width: Math.round(base * w / h), height: base };
-  }
-}
 
 function App() {
   const [innerShoe, setInnerShoe] = useState(null);
@@ -177,7 +166,6 @@ function App() {
         }
 
       // Step 3: Generate image
-      const imageSize = getImageSize(resolution, aspect);
       const imageUrls = [outerUrl];
       if (innerUrl) imageUrls.push(innerUrl);
       if (referenceUrl) imageUrls.push(referenceUrl);
@@ -185,7 +173,10 @@ function App() {
       const inputs = {
         prompt: generatedPrompt,
         image_urls: imageUrls,
-        image_size: imageSize,
+        aspect_ratio: aspect.value,
+        resolution: resolution,
+        num_images: 1,
+        output_format: 'png',
       };
 
       const result = await falAI.fal.subscribe('fal-ai/nano-banana-2/edit', {
