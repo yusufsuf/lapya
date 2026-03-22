@@ -6,9 +6,9 @@ import './App.css';
 const RESOLUTION_OPTIONS = ['1K', '2K', '4K'];
 
 const ASPECT_OPTIONS = [
-  { label: '16:9', value: '16:9' },
-  { label: '9:16', value: '9:16' },
-  { label: 'Kare', value: '1:1' },
+  { label: 'Yatay', shape: { w: 28, h: 16 }, value: '16:9' },
+  { label: 'Dikey', shape: { w: 16, h: 28 }, value: '9:16' },
+  { label: 'Kare',  shape: { w: 22, h: 22 }, value: '1:1' },
 ];
 
 function App() {
@@ -316,14 +316,22 @@ function App() {
                     key={opt.label}
                     onClick={() => setAspect(opt)}
                     style={{
-                      flex: 1, padding: '0.6rem', border: 'none',
+                      flex: 1, padding: '0.5rem 0.4rem', border: 'none',
                       borderRight: i < ASPECT_OPTIONS.length - 1 ? '1px solid rgba(255,255,255,0.12)' : 'none',
                       background: aspect.label === opt.label ? 'var(--accent-color, #3b82f6)' : 'transparent',
                       color: aspect.label === opt.label ? '#fff' : 'var(--text-secondary)',
                       fontWeight: aspect.label === opt.label ? '600' : '400',
-                      cursor: 'pointer', fontSize: '0.9rem', transition: 'background 0.2s',
+                      cursor: 'pointer', fontSize: '0.75rem', transition: 'background 0.2s',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem',
                     }}
-                  >{opt.label}</button>
+                  >
+                    <div style={{
+                      width: opt.shape.w, height: opt.shape.h,
+                      border: `2px solid ${aspect.label === opt.label ? '#fff' : 'rgba(255,255,255,0.4)'}`,
+                      borderRadius: '2px',
+                    }} />
+                    {opt.label}
+                  </button>
                 ))}
               </div>
             </div>
