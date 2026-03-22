@@ -18,8 +18,9 @@ function App() {
   const [customPrompt, setCustomPrompt] = useState('');
   const [resolution, setResolution] = useState('1K');
   const [aspect, setAspect] = useState(ASPECT_OPTIONS[2]); // Kare default
+  const [numImages, setNumImages] = useState(1);
 
-  const [resultImg, setResultImg] = useState(null);
+  const [resultImgs, setResultImgs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -84,7 +85,7 @@ function App() {
 
     setLoading(true);
     setError(null);
-    setResultImg(null);
+    setResultImgs([]);
 
     try {
       falAI.fal.config({ credentials: falKey });
@@ -175,7 +176,7 @@ function App() {
         image_urls: imageUrls,
         aspect_ratio: aspect.value,
         resolution: resolution,
-        num_images: 1,
+        num_images: numImages,
         output_format: 'png',
       };
 
@@ -191,27 +192,30 @@ function App() {
         throw new Error('Görsel oluşturma hatası (FAL AI): ' + e.message);
       });
 
-      let finalImageUrl = null;
+      let urls = [];
       if (result.data?.images?.length > 0) {
-        finalImageUrl = result.data.images[0].url;
+        urls = result.data.images.map(img => img.url);
       } else if (result.data?.image?.url) {
-        finalImageUrl = result.data.image.url;
+        urls = [result.data.image.url];
       } else {
-        finalImageUrl = Object.values(result.data).find(v => typeof v === 'string' && v.startsWith('http'));
+        const fallback = Object.values(result.data).find(v => typeof v === 'string' && v.startsWith('http'));
+        if (fallback) urls = [fallback];
       }
 
-      if (finalImageUrl) {
-        setResultImg(finalImageUrl);
+      if (urls.length > 0) {
+        setResultImgs(urls);
         if (TELEGRAM_CHAT_IDS.length > 0) {
-          for (const chatId of TELEGRAM_CHAT_IDS) {
-            try {
-              await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendPhoto`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chat_id: chatId.trim(), photo: finalImageUrl, caption: 'Görsel hazır! ✨' })
-              });
-            } catch (telErr) {
-              console.error(`Telegram error for ${chatId}:`, telErr);
+          for (const url of urls) {
+            for (const chatId of TELEGRAM_CHAT_IDS) {
+              try {
+                await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendPhoto`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ chat_id: chatId.trim(), photo: url, caption: 'Görsel hazır! ✨' })
+                });
+              } catch (telErr) {
+                console.error(`Telegram error for ${chatId}:`, telErr);
+              }
             }
           }
         }
@@ -325,6 +329,27 @@ function App() {
             </div>
           </div>
 
+          {/* Num Images Selector */}
+          <div style={{ marginTop: '1.25rem' }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Çıktı Adeti</p>
+            <div style={{ display: 'flex', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', overflow: 'hidden' }}>
+              {[1, 2, 3, 4].map((n, i) => (
+                <button
+                  key={n}
+                  onClick={() => setNumImages(n)}
+                  style={{
+                    flex: 1, padding: '0.6rem', border: 'none',
+                    borderRight: i < 3 ? '1px solid rgba(255,255,255,0.12)' : 'none',
+                    background: numImages === n ? 'var(--accent-color, #3b82f6)' : 'transparent',
+                    color: numImages === n ? '#fff' : 'var(--text-secondary)',
+                    fontWeight: numImages === n ? '600' : '400',
+                    cursor: 'pointer', fontSize: '0.9rem', transition: 'background 0.2s',
+                  }}
+                >{n}</button>
+              ))}
+            </div>
+          </div>
+
           {/* Custom Prompt */}
           <div style={{ marginTop: '1.25rem' }}>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
@@ -377,17 +402,26 @@ function App() {
               </div>
             )}
 
-            {resultImg ? (
-              <>
-                <img src={resultImg} alt="Try On Sonucu" className="result-image" />
-                <button
-                  onClick={() => triggerDownload(resultImg)}
-                  className="btn btn-secondary"
-                  style={{position: 'absolute', bottom: '1rem', right: '1rem', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', borderColor: 'rgba(255,255,255,0.2)', color: 'white'}}
-                >
-                  <Download size={18} /> İndir
-                </button>
-              </>
+            {resultImgs.length > 0 ? (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: resultImgs.length === 1 ? '1fr' : 'repeat(2, 1fr)',
+                gap: '0.75rem',
+                width: '100%',
+              }}>
+                {resultImgs.map((url, idx) => (
+                  <div key={idx} style={{ position: 'relative' }}>
+                    <img src={url} alt={`Sonuç ${idx + 1}`} style={{ width: '100%', borderRadius: '10px', display: 'block' }} />
+                    <button
+                      onClick={() => triggerDownload(url)}
+                      className="btn btn-secondary"
+                      style={{ position: 'absolute', bottom: '0.5rem', right: '0.5rem', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', borderColor: 'rgba(255,255,255,0.2)', color: 'white', padding: '0.4rem 0.7rem', fontSize: '0.8rem' }}
+                    >
+                      <Download size={15} /> İndir
+                    </button>
+                  </div>
+                ))}
+              </div>
             ) : (
               !loading && (
                 <div className="result-placeholder">
