@@ -1,35 +1,32 @@
 import { useState } from 'react';
-import { Upload, Image as ImageIcon, Sparkles, X, Camera, Fingerprint, Download, Lock } from 'lucide-react';
+import { Image as ImageIcon, Sparkles, X, Camera, Fingerprint, Download } from 'lucide-react';
 import * as falAI from '@fal-ai/client';
 import './App.css';
+
+const RESOLUTION_OPTIONS = [
+  { label: '1K', width: 1024, height: 1024 },
+  { label: '2K', width: 2048, height: 2048 },
+  { label: '4K', width: 4096, height: 4096 },
+];
 
 function App() {
   const [innerShoe, setInnerShoe] = useState(null);
   const [outerShoe, setOuterShoe] = useState(null);
   const [referenceImg, setReferenceImg] = useState(null);
-  
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [resolution, setResolution] = useState('1K');
+
   const [resultImg, setResultImg] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Settings
   const [falKey] = useState(import.meta.env.VITE_FAL_KEY || '');
-
-  // Telegram Settings
   const telegramBotToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN || '';
-  
-  // Lütfen otomatik gönderim yapılmasını istediğiniz Telegram ID'leri bu listeye ekleyin.
-  // Virgülle ayırarak birden fazla ID ekleyebilirsiniz. Örn: ['123', '456']
   const TELEGRAM_CHAT_IDS = ['7463074399'];
 
   const handleFileChange = (e, setter) => {
     const file = e.target.files[0];
-    if (file) {
-      setter({
-        file,
-        preview: URL.createObjectURL(file)
-      });
-    }
+    if (file) setter({ file, preview: URL.createObjectURL(file) });
   };
 
   const removeImage = (e, setter) => {
@@ -38,7 +35,6 @@ function App() {
     setter(null);
   };
 
-  // Helper function to force native download on click
   const triggerDownload = async (url) => {
     try {
       const response = await fetch(url);
@@ -46,23 +42,20 @@ function App() {
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = `sanal-deneme-${new Date().getTime()}.jpg`;
+      link.download = `lapya-${new Date().getTime()}.jpg`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(downloadUrl);
     } catch (e) {
-      console.error("Auto download failed", e);
+      console.error("Download failed", e);
     }
   };
 
   const compressImage = (file, maxSizeMB = 3) => {
     return new Promise((resolve) => {
       const maxBytes = maxSizeMB * 1024 * 1024;
-      if (file.size <= maxBytes) {
-        resolve(file);
-        return;
-      }
+      if (file.size <= maxBytes) { resolve(file); return; }
       const img = document.createElement('img');
       const canvas = document.createElement('canvas');
       const reader = new FileReader();
@@ -83,30 +76,20 @@ function App() {
   };
 
   const handleGenerate = async () => {
-    if (!falKey) {
-      setError('Lütfen bir Fal AI API Anahtarı girin.');
-      return;
-    }
-    if (!outerShoe) {
-      setError('En azından Dış Ayakkabı görüntüsü yüklenmelidir.');
-      return;
-    }
+    if (!falKey) { setError('FAL AI API anahtarı tanımlı değil.'); return; }
+    if (!outerShoe) { setError('En azından Dış Ayakkabı görüntüsü yüklenmelidir.'); return; }
 
     setLoading(true);
     setError(null);
     setResultImg(null);
 
     try {
-      // Configure client setup parameters
-      falAI.fal.config({
-        credentials: falKey
-      });
+      falAI.fal.config({ credentials: falKey });
 
-      // Step 1: Compress and upload images to Fal Storage
-      setError(null);
+      // Step 1: Upload images
       let outerFile = await compressImage(outerShoe.file);
       const outerUrl = await falAI.fal.storage.upload(outerFile).catch(e => {
-        throw new Error('Görsel yüklenemedi (FAL Storage). Lütfen bağlantınızı kontrol edin. (' + e.message + ')');
+        throw new Error('Görsel yüklenemedi (FAL Storage). (' + e.message + ')');
       });
 
       let innerUrl = null;
@@ -125,53 +108,56 @@ function App() {
         });
       }
 
-      // Step 2: Use OpenAI to analyze the images and create a detailed prompt
-      let generatedPrompt = "Photorealistic styling of shoes, virtual try on, perfect fit, high quality footwear.";
-      
-      try {
-        let systemPromptText = "You are an expert AI prompt engineer. ";
-        let contentItems = [];
-        let nextImageIndex = 1;
+      // Step 2: Generate or use custom prompt
+      let generatedPrompt = customPrompt.trim();
 
-        contentItems.push({ type: "image_url", image_url: { url: outerUrl } });
-        systemPromptText += `Image ${nextImageIndex} is the outer angle of a shoe. `;
-        nextImageIndex++;
+      if (!generatedPrompt) {
+        try {
+          let systemPromptText = "You are an expert AI prompt engineer. ";
+          let contentItems = [];
+          let nextImageIndex = 1;
 
-        if (innerUrl) {
+          contentItems.push({ type: "image_url", image_url: { url: outerUrl } });
+          systemPromptText += `Image ${nextImageIndex} is the outer angle of a shoe. `;
+          nextImageIndex++;
+
+          if (innerUrl) {
             contentItems.push({ type: "image_url", image_url: { url: innerUrl } });
             systemPromptText += `Image ${nextImageIndex} is the inner angle of the same shoe. `;
             nextImageIndex++;
-        }
+          }
 
-        if (referenceUrl) {
+          if (referenceUrl) {
             contentItems.push({ type: "image_url", image_url: { url: referenceUrl } });
             systemPromptText += `Image ${nextImageIndex} is a reference photo of a person wearing some shoes. Your task is to write a highly detailed text prompt for an image-to-image AI model. The prompt should describe the reference photo (Image ${nextImageIndex}) exactly as it is (person, pose, clothing, background, lighting), BUT replace the shoes they are wearing with the exact shoes shown in the previous images. Describe the new shoes deeply (material, color, style, texture). The output must ONLY be the english prompt, no conversational text or formatting.`;
-        } else {
+          } else {
             systemPromptText += `Your task is to write a highly detailed text prompt for an AI image generation model. Create a photorealistic prompt describing the exact shoes shown in the image(s) above (details, material, color, style, texture). The prompt MUST specifically place these shoes onto the feet/legs of a female fashion model. The composition MUST focus ONLY on her legs and feet wearing these shoes. Her upper body MUST NOT be visible. The legs should be positioned elegantly, similar to fashion street photography. The output must ONLY be the english prompt, no conversational text or formatting.`;
-        }
+          }
 
-        contentItems.unshift({ type: "text", text: systemPromptText });
+          contentItems.unshift({ type: "text", text: systemPromptText });
 
-        const aiRes = await fetch('/api/generate-prompt', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: [{ role: 'user', content: contentItems }] }),
-        });
-        if (!aiRes.ok) {
-          const errText = await aiRes.text();
-          let errMsg = errText;
-          try { errMsg = JSON.parse(errText).error || errText; } catch {}
-          throw new Error(`Sunucu hatası (${aiRes.status}): ${errMsg.slice(0, 200)}`);
+          const aiRes = await fetch('/api/generate-prompt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: [{ role: 'user', content: contentItems }] }),
+          });
+          if (!aiRes.ok) {
+            const errText = await aiRes.text();
+            let errMsg = errText;
+            try { errMsg = JSON.parse(errText).error || errText; } catch {}
+            throw new Error(`Sunucu hatası (${aiRes.status}): ${errMsg.slice(0, 200)}`);
+          }
+          const aiData = await aiRes.json();
+          generatedPrompt = aiData.prompt;
+          console.log("Generated Prompt:", generatedPrompt);
+        } catch (err) {
+          console.error("OpenAI Error:", err);
+          throw new Error("OpenAI bağlantı hatası: " + (err.message || 'API anahtarını kontrol edin.'));
         }
-        const aiData = await aiRes.json();
-        generatedPrompt = aiData.prompt;
-        console.log("OpenAI Generated Prompt:", generatedPrompt);
-      } catch (err) {
-        console.error("OpenAI Error:", err);
-        throw new Error("OpenAI bağlantı hatası: " + (err.message || 'API anahtarını kontrol edin.'));
       }
 
-      // Step 3: Call the exact Nano Banana 2 API Endpoint
+      // Step 3: Generate image
+      const res = RESOLUTION_OPTIONS.find(r => r.label === resolution);
       const imageUrls = [outerUrl];
       if (innerUrl) imageUrls.push(innerUrl);
       if (referenceUrl) imageUrls.push(referenceUrl);
@@ -179,6 +165,7 @@ function App() {
       const inputs = {
         prompt: generatedPrompt,
         image_urls: imageUrls,
+        image_size: { width: res.width, height: res.height },
       };
 
       const result = await falAI.fal.subscribe('fal-ai/nano-banana-2/edit', {
@@ -186,43 +173,34 @@ function App() {
         logs: true,
         onQueueUpdate: (update) => {
           if (update.status === 'IN_PROGRESS') {
-             update.logs.map((log) => log.message).forEach(console.log);
+            update.logs.map((log) => log.message).forEach(console.log);
           }
         },
       }).catch(e => {
         throw new Error('Görsel oluşturma hatası (FAL AI): ' + e.message);
       });
 
-      // Assume output returns an image url field named 'image' or an array of 'images'
       let finalImageUrl = null;
-      if (result.data && result.data.images && result.data.images.length > 0) {
-         finalImageUrl = result.data.images[0].url;
-      } else if (result.data && result.data.image && result.data.image.url) {
-         finalImageUrl = result.data.image.url;
+      if (result.data?.images?.length > 0) {
+        finalImageUrl = result.data.images[0].url;
+      } else if (result.data?.image?.url) {
+        finalImageUrl = result.data.image.url;
       } else {
-         // Fallback: look for any url property in data
-         finalImageUrl = Object.values(result.data).find(v => typeof v === 'string' && v.startsWith('http'));
+        finalImageUrl = Object.values(result.data).find(v => typeof v === 'string' && v.startsWith('http'));
       }
 
       if (finalImageUrl) {
         setResultImg(finalImageUrl);
-        
-        // Telegram Sending Logic (Toplu Gönderim)
         if (TELEGRAM_CHAT_IDS.length > 0) {
           for (const chatId of TELEGRAM_CHAT_IDS) {
             try {
               await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendPhoto`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  chat_id: chatId.trim(),
-                  photo: finalImageUrl,
-                  caption: 'Görsel hazır! ✨'
-                })
+                body: JSON.stringify({ chat_id: chatId.trim(), photo: finalImageUrl, caption: 'Görsel hazır! ✨' })
               });
-              console.log(`Telegram message sent successfully to -> ${chatId}`);
             } catch (telErr) {
-              console.error(`Telegram API Error for ${chatId}:`, telErr);
+              console.error(`Telegram error for ${chatId}:`, telErr);
             }
           }
         }
@@ -268,37 +246,90 @@ function App() {
         <section className="glass-panel upload-section">
 
           <h2 className="section-title"><Fingerprint size={24} className="icon"/> Giriş Görselleri</h2>
-          
+
           <div className="upload-grid">
-            <UploadBox 
-              label="İç Ayakkabı (Opsiyonel)" 
-              subLabel="(Tavan veya iç astar açısı)"
-              state={innerShoe} 
-              setter={setInnerShoe} 
-              icon={ImageIcon} 
-            />
-            <UploadBox 
-              label="Dış Ayakkabı (Zorunlu)" 
+            <UploadBox
+              label="Dış Ayakkabı (Zorunlu)"
               subLabel="(Genel dış profil)"
-              state={outerShoe} 
-              setter={setOuterShoe} 
-              icon={ImageIcon} 
+              state={outerShoe}
+              setter={setOuterShoe}
+              icon={ImageIcon}
             />
-            <UploadBox 
-              label="Referans Fotoğraf (Opsiyonel)" 
+            <UploadBox
+              label="İç Ayakkabı (Opsiyonel)"
+              subLabel="(Tavan veya iç astar açısı)"
+              state={innerShoe}
+              setter={setInnerShoe}
+              icon={ImageIcon}
+            />
+            <UploadBox
+              label="Referans Fotoğraf (Opsiyonel)"
               subLabel="(Ayakkabının giyileceği orijinal manken, yoksa yapay zeka oluşturur)"
-              state={referenceImg} 
-              setter={setReferenceImg} 
-              icon={Camera} 
+              state={referenceImg}
+              setter={setReferenceImg}
+              icon={Camera}
               isFull={true}
+            />
+          </div>
+
+          {/* Resolution Selector */}
+          <div style={{ marginTop: '1.25rem' }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Görüntü Çözünürlüğü</p>
+            <div style={{ display: 'flex', gap: '0', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', overflow: 'hidden' }}>
+              {RESOLUTION_OPTIONS.map((opt) => (
+                <button
+                  key={opt.label}
+                  onClick={() => setResolution(opt.label)}
+                  style={{
+                    flex: 1,
+                    padding: '0.6rem',
+                    border: 'none',
+                    borderRight: opt.label !== '4K' ? '1px solid rgba(255,255,255,0.12)' : 'none',
+                    background: resolution === opt.label ? 'var(--accent-color, #3b82f6)' : 'transparent',
+                    color: resolution === opt.label ? '#fff' : 'var(--text-secondary)',
+                    fontWeight: resolution === opt.label ? '600' : '400',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    transition: 'background 0.2s',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom Prompt */}
+          <div style={{ marginTop: '1.25rem' }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+              Özel Prompt <span style={{ opacity: 0.6 }}>(boş bırakılırsa otomatik oluşturulur)</span>
+            </p>
+            <textarea
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              placeholder="Görsel için özel bir yönerge yazın... (örn: siyah platformlu topuklu ayakkabı, beyaz arka plan, stüdyo ışığı)"
+              rows={3}
+              style={{
+                width: '100%',
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '10px',
+                color: 'var(--text-primary, #fff)',
+                padding: '0.75rem',
+                fontSize: '0.85rem',
+                resize: 'vertical',
+                outline: 'none',
+                fontFamily: 'inherit',
+                boxSizing: 'border-box',
+              }}
             />
           </div>
 
           {error && <div style={{color: 'var(--danger-color)', padding: '1rem', background: 'rgba(239,68,68,0.1)', borderRadius: '8px', marginTop: '1rem'}}>{error}</div>}
 
           <div className="actions">
-            <button 
-              className="btn btn-primary generate-btn" 
+            <button
+              className="btn btn-primary generate-btn"
               onClick={handleGenerate}
               disabled={loading}
             >
@@ -310,7 +341,7 @@ function App() {
 
         <section className="glass-panel result-section">
           <h2 className="section-title"><Sparkles size={24} className="icon"/> Sonuç Görüntüsü</h2>
-          
+
           <div className="result-container">
             {loading && (
               <div className="loading-overlay">
@@ -319,13 +350,13 @@ function App() {
                 <div className="loading-text">Görseliniz Hazırlanıyor...</div>
               </div>
             )}
-            
+
             {resultImg ? (
               <>
                 <img src={resultImg} alt="Try On Sonucu" className="result-image" />
-                <button 
-                  onClick={() => triggerDownload(resultImg)} 
-                  className="btn btn-secondary" 
+                <button
+                  onClick={() => triggerDownload(resultImg)}
+                  className="btn btn-secondary"
                   style={{position: 'absolute', bottom: '1rem', right: '1rem', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', borderColor: 'rgba(255,255,255,0.2)', color: 'white'}}
                 >
                   <Download size={18} /> İndir
