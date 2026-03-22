@@ -397,7 +397,7 @@ function App() {
               disabled={loading}
             >
               <Sparkles size={20} />
-              <span>{loading ? 'İşleniyor...' : 'Görsel Oluştur'}</span>
+              {loading ? 'İşleniyor...' : 'Görsel Oluştur'}
             </button>
           </div>
         </section>

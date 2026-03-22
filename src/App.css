@@ -222,79 +222,9 @@
   z-index: 2;
 }
 
-/* Upload box — neon when image loaded */
-.upload-box.has-image {
-  border-color: transparent !important;
-}
-
-.upload-box.has-image::before {
-  content: '';
-  position: absolute;
-  inset: -100%;
-  width: 300%;
-  height: 300%;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    rgba(59, 130, 246, 0.45) 45deg,
-    rgba(147, 197, 253, 1) 80deg,
-    transparent 135deg
-  );
-  animation: neon-rotate 3s linear infinite;
-  z-index: 0;
-}
-
-.upload-box.has-image .preview-image {
-  top: 2px;
-  left: 2px;
-  width: calc(100% - 4px);
-  height: calc(100% - 4px);
-  border-radius: calc(var(--border-radius-md) - 2px);
-  z-index: 2;
-}
-
-.upload-box.has-image .remove-btn {
-  z-index: 4;
-}
-
-/* Generate button — neon */
+/* Generate button — pulse glow (original) */
 .generate-btn:not(:disabled) {
-  background: #0b0d13 !important;
-  overflow: hidden !important;
-  animation: none !important;
-  box-shadow: none !important;
-  border: none !important;
-}
-
-.generate-btn:not(:disabled)::before {
-  content: '';
-  position: absolute;
-  inset: -100%;
-  width: 300%;
-  height: 300%;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    rgba(59, 130, 246, 0.45) 45deg,
-    rgba(147, 197, 253, 1) 80deg,
-    transparent 135deg
-  );
-  animation: neon-rotate 2s linear infinite;
-  z-index: 0;
-}
-
-.generate-btn:not(:disabled)::after {
-  content: '';
-  position: absolute;
-  inset: 1.5px;
-  background: #0b0d13;
-  border-radius: calc(var(--border-radius-md) - 1.5px);
-  z-index: 1;
-}
-
-.generate-btn > * {
-  position: relative;
-  z-index: 2;
+  animation: pulse-glow 2s infinite;
 }
 
 .result-container {
