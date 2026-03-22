@@ -158,8 +158,10 @@ function App() {
           body: JSON.stringify({ messages: [{ role: 'user', content: contentItems }] }),
         });
         if (!aiRes.ok) {
-          const errBody = await aiRes.json();
-          throw new Error(`OpenAI API hatası: ${errBody.error}`);
+          const errText = await aiRes.text();
+          let errMsg = errText;
+          try { errMsg = JSON.parse(errText).error || errText; } catch {}
+          throw new Error(`Sunucu hatası (${aiRes.status}): ${errMsg.slice(0, 200)}`);
         }
         const aiData = await aiRes.json();
         generatedPrompt = aiData.prompt;
