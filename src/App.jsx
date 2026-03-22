@@ -296,15 +296,16 @@ function App() {
                   <button
                     key={opt}
                     onClick={() => setResolution(opt)}
+                    className={resolution === opt ? 'neon-active' : ''}
                     style={{
                       flex: 1, padding: '0.6rem', border: 'none',
                       borderRight: i < RESOLUTION_OPTIONS.length - 1 ? '1px solid rgba(255,255,255,0.12)' : 'none',
-                      background: resolution === opt ? 'var(--accent-color, #3b82f6)' : 'transparent',
+                      background: 'transparent',
                       color: resolution === opt ? '#fff' : 'var(--text-secondary)',
                       fontWeight: resolution === opt ? '600' : '400',
-                      cursor: 'pointer', fontSize: '0.9rem', transition: 'background 0.2s',
+                      cursor: 'pointer', fontSize: '0.9rem', transition: 'color 0.2s',
                     }}
-                  >{opt}</button>
+                  ><span>{opt}</span></button>
                 ))}
               </div>
             </div>
@@ -315,13 +316,14 @@ function App() {
                   <button
                     key={opt.label}
                     onClick={() => setAspect(opt)}
+                    className={aspect.label === opt.label ? 'neon-active' : ''}
                     style={{
                       flex: 1, padding: '0.5rem 0.4rem', border: 'none',
                       borderRight: i < ASPECT_OPTIONS.length - 1 ? '1px solid rgba(255,255,255,0.12)' : 'none',
-                      background: aspect.label === opt.label ? 'var(--accent-color, #3b82f6)' : 'transparent',
+                      background: 'transparent',
                       color: aspect.label === opt.label ? '#fff' : 'var(--text-secondary)',
                       fontWeight: aspect.label === opt.label ? '600' : '400',
-                      cursor: 'pointer', fontSize: '0.75rem', transition: 'background 0.2s',
+                      cursor: 'pointer', fontSize: '0.75rem', transition: 'color 0.2s',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem',
                     }}
                   >
@@ -329,8 +331,9 @@ function App() {
                       width: opt.shape.w, height: opt.shape.h,
                       border: `2px solid ${aspect.label === opt.label ? '#fff' : 'rgba(255,255,255,0.4)'}`,
                       borderRadius: '2px',
+                      position: 'relative', zIndex: 2,
                     }} />
-                    {opt.label}
+                    <span style={{position: 'relative', zIndex: 2}}>{opt.label}</span>
                   </button>
                 ))}
               </div>
@@ -345,15 +348,16 @@ function App() {
                 <button
                   key={n}
                   onClick={() => setNumImages(n)}
+                  className={numImages === n ? 'neon-active' : ''}
                   style={{
                     flex: 1, padding: '0.6rem', border: 'none',
                     borderRight: i < 3 ? '1px solid rgba(255,255,255,0.12)' : 'none',
-                    background: numImages === n ? 'var(--accent-color, #3b82f6)' : 'transparent',
+                    background: 'transparent',
                     color: numImages === n ? '#fff' : 'var(--text-secondary)',
                     fontWeight: numImages === n ? '600' : '400',
-                    cursor: 'pointer', fontSize: '0.9rem', transition: 'background 0.2s',
+                    cursor: 'pointer', fontSize: '0.9rem', transition: 'color 0.2s',
                   }}
-                >{n}</button>
+                ><span>{n}</span></button>
               ))}
             </div>
           </div>
@@ -393,7 +397,7 @@ function App() {
               disabled={loading}
             >
               <Sparkles size={20} />
-              {loading ? 'İşleniyor...' : 'Görsel Oluştur'}
+              <span>{loading ? 'İşleniyor...' : 'Görsel Oluştur'}</span>
             </button>
           </div>
         </section>
