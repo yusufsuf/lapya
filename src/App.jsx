@@ -122,11 +122,10 @@ function App() {
         });
       }
 
-      // Step 2: Generate or use custom prompt
-      let generatedPrompt = customPrompt.trim();
+      // Step 2: Generate prompt via OpenAI (always)
+      let generatedPrompt = "Photorealistic styling of shoes, virtual try on, perfect fit, high quality footwear.";
 
-      if (!generatedPrompt) {
-        try {
+      try {
           let systemPromptText = "You are an expert AI prompt engineer. ";
           let contentItems = [];
           let nextImageIndex = 1;
@@ -141,12 +140,20 @@ function App() {
             nextImageIndex++;
           }
 
+          const userHint = customPrompt.trim();
+
           if (referenceUrl) {
             contentItems.push({ type: "image_url", image_url: { url: referenceUrl } });
-            systemPromptText += `Image ${nextImageIndex} is a reference photo of a person wearing some shoes. Your task is to write a highly detailed text prompt for an image-to-image AI model. The prompt should describe the reference photo (Image ${nextImageIndex}) exactly as it is (person, pose, clothing, background, lighting), BUT replace the shoes they are wearing with the exact shoes shown in the previous images. Describe the new shoes deeply (material, color, style, texture). The output must ONLY be the english prompt, no conversational text or formatting.`;
+            systemPromptText += `Image ${nextImageIndex} is a reference photo of a person wearing some shoes. Your task is to write a highly detailed text prompt for an image-to-image AI model. The prompt should describe the reference photo (Image ${nextImageIndex}) exactly as it is (person, pose, clothing, background, lighting), BUT replace the shoes they are wearing with the exact shoes shown in the previous images. Describe the new shoes deeply (material, color, style, texture).`;
           } else {
-            systemPromptText += `Your task is to write a highly detailed text prompt for an AI image generation model. Create a photorealistic prompt describing the exact shoes shown in the image(s) above (details, material, color, style, texture). The prompt MUST specifically place these shoes onto the feet/legs of a female fashion model. The composition MUST focus ONLY on her legs and feet wearing these shoes. Her upper body MUST NOT be visible. The legs should be positioned elegantly, similar to fashion street photography. The output must ONLY be the english prompt, no conversational text or formatting.`;
+            systemPromptText += `Your task is to write a highly detailed text prompt for an AI image generation model. Create a photorealistic prompt describing the exact shoes shown in the image(s) above (details, material, color, style, texture). The prompt MUST specifically place these shoes onto the feet/legs of a female fashion model. The composition MUST focus ONLY on her legs and feet wearing these shoes. Her upper body MUST NOT be visible. The legs should be positioned elegantly, similar to fashion street photography.`;
           }
+
+          if (userHint) {
+            systemPromptText += ` Additionally, the user has provided this specific instruction that you MUST incorporate into the prompt: "${userHint}".`;
+          }
+
+          systemPromptText += ` The output must ONLY be the english prompt, no conversational text or formatting.`;
 
           contentItems.unshift({ type: "text", text: systemPromptText });
 
@@ -168,7 +175,6 @@ function App() {
           console.error("OpenAI Error:", err);
           throw new Error("OpenAI bağlantı hatası: " + (err.message || 'API anahtarını kontrol edin.'));
         }
-      }
 
       // Step 3: Generate image
       const imageSize = getImageSize(resolution, aspect);
