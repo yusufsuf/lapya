@@ -22,7 +22,7 @@ app.post('/api/generate-prompt', async (req, res) => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${openaiKey}`,
       },
-      body: JSON.stringify({ model: 'gpt-4o', messages, max_tokens: 300 }),
+      body: JSON.stringify({ model: 'gpt-4o', messages, max_tokens: 600 }),
     });
 
     if (!response.ok) {

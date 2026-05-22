@@ -16,6 +16,7 @@ function App() {
   const [outerShoe, setOuterShoe] = useState(null);
   const [referenceImg, setReferenceImg] = useState(null);
   const [customPrompt, setCustomPrompt] = useState('');
+  const [location, setLocation] = useState('');
   const [resolution, setResolution] = useState('1K');
   const [aspect, setAspect] = useState(ASPECT_OPTIONS[2]); // Kare default
   const [numImages, setNumImages] = useState(1);
@@ -113,37 +114,44 @@ function App() {
       }
 
       // Step 2: Generate prompt via OpenAI (always)
-      let generatedPrompt = "Photorealistic styling of shoes, virtual try on, perfect fit, high quality footwear.";
+      let generatedPrompt = "Premium photorealistic fashion advertising photograph of elegant designer shoes worn on a female model's legs and feet, editorial street-style composition, shot on an 85mm lens, shallow depth of field, soft natural light, ultra-realistic textures, sharp focus, refined colour grading, magazine quality.";
 
       try {
-          let systemPromptText = "You are an expert AI prompt engineer. ";
+          let systemPromptText = "You are a world-class creative director and prompt engineer for luxury footwear advertising campaigns. ";
           let contentItems = [];
           let nextImageIndex = 1;
 
           contentItems.push({ type: "image_url", image_url: { url: outerUrl } });
-          systemPromptText += `Image ${nextImageIndex} is the outer angle of a shoe. `;
+          systemPromptText += `Image ${nextImageIndex} shows the outer profile of a shoe. `;
           nextImageIndex++;
 
           if (innerUrl) {
             contentItems.push({ type: "image_url", image_url: { url: innerUrl } });
-            systemPromptText += `Image ${nextImageIndex} is the inner angle of the same shoe. `;
+            systemPromptText += `Image ${nextImageIndex} shows the inner / top-down angle of the same shoe. `;
             nextImageIndex++;
           }
 
           const userHint = customPrompt.trim();
+          const locationHint = location.trim();
 
           if (referenceUrl) {
             contentItems.push({ type: "image_url", image_url: { url: referenceUrl } });
-            systemPromptText += `Image ${nextImageIndex} is a reference photo of a person wearing some shoes. Your task is to write a highly detailed text prompt for an image-to-image AI model. The prompt should describe the reference photo (Image ${nextImageIndex}) exactly as it is (person, pose, clothing, background, lighting), BUT replace the shoes they are wearing with the exact shoes shown in the previous images. Describe the new shoes deeply (material, color, style, texture).`;
+            systemPromptText += `Image ${nextImageIndex} is a reference photo of a person. Write ONE highly detailed English prompt for an image-to-image AI model. Faithfully recreate the reference photo (Image ${nextImageIndex}) — exact same person, pose, body proportions, clothing, framing and mood — but REPLACE their footwear with the exact shoes from the earlier images. Describe the shoes with precise, true-to-source detail: material, finish, colour, stitching, sole, hardware and texture, so they look photorealistic and perfectly fitted on the feet. `;
           } else {
-            systemPromptText += `Your task is to write a highly detailed text prompt for an AI image generation model. Create a photorealistic prompt describing the exact shoes shown in the image(s) above (details, material, color, style, texture). The prompt MUST specifically place these shoes onto the feet/legs of a female fashion model. The composition MUST focus ONLY on her legs and feet wearing these shoes. Her upper body MUST NOT be visible. The legs should be positioned elegantly, similar to fashion street photography.`;
+            systemPromptText += `Write ONE highly detailed English prompt for a premium AI image generation model. The prompt must describe a high-end fashion advertising photograph featuring the exact shoes from the image(s) above, worn on the feet of an elegant female fashion model. Frame the composition to focus ONLY on her legs and feet — her upper body and face MUST NOT be visible. Describe the shoes precisely and accurately (material, finish, colour, stitching, sole, hardware, texture). The pose must look natural, confident and editorial, like a luxury street-style or campaign shot. `;
           }
+
+          if (locationHint) {
+            systemPromptText += `The scene MUST be set in this specific real-world location: "${locationHint}". Build an authentic, recognisable environment of that place — characteristic architecture, landmarks, surroundings, atmosphere and natural lighting that clearly identify it. `;
+          }
+
+          systemPromptText += `Make the result cinematic and genuinely premium: photographed on a full-frame camera with an 85mm lens, shallow depth of field with tasteful background bokeh, soft natural directional light, true-to-life colours, ultra-realistic skin and material textures, crisp sharp focus on the shoes, refined professional colour grading, high dynamic range and magazine-quality composition. Strictly avoid any cartoonish, plastic, CGI, over-saturated or artificial look. `;
 
           if (userHint) {
-            systemPromptText += ` Additionally, the user has provided this specific instruction that you MUST incorporate into the prompt: "${userHint}".`;
+            systemPromptText += `You MUST also naturally incorporate this user instruction into the prompt: "${userHint}". `;
           }
 
-          systemPromptText += ` The output must ONLY be the english prompt, no conversational text or formatting.`;
+          systemPromptText += `Output ONLY the final English prompt as a single plain-text paragraph — no preamble, no quotes, no labels, no formatting.`;
 
           contentItems.unshift({ type: "text", text: systemPromptText });
 
@@ -360,6 +368,31 @@ function App() {
                 ><span>{n}</span></button>
               ))}
             </div>
+          </div>
+
+          {/* Location */}
+          <div style={{ marginTop: '1.25rem' }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+              Konum <span style={{ opacity: 0.6 }}>(opsiyonel — görselin geçeceği yer)</span>
+            </p>
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="örn: Paris, Santorini, New York sokakları, sahil..."
+              style={{
+                width: '100%',
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '10px',
+                color: 'var(--text-primary, #fff)',
+                padding: '0.75rem',
+                fontSize: '0.85rem',
+                outline: 'none',
+                fontFamily: 'inherit',
+                boxSizing: 'border-box',
+              }}
+            />
           </div>
 
           {/* Custom Prompt */}

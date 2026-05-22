@@ -82,8 +82,8 @@
 }
 
 .upload-box:hover {
-  border-color: var(--accent-color);
-  background: rgba(139, 92, 246, 0.05);
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.04);
   transform: translateY(-2px);
 }
 
@@ -177,54 +177,11 @@
   padding: 1rem;
 }
 
-/* === Neon Rotating Border === */
-@keyframes neon-rotate {
-  to { transform: rotate(360deg); }
-}
-
 /* Segmented button — selected state */
 .neon-active {
-  position: relative !important;
-  overflow: hidden !important;
-  background: #0b0d13 !important;
+  background: rgba(255, 255, 255, 0.1) !important;
   color: #fff !important;
   font-weight: 600 !important;
-}
-
-.neon-active::before {
-  content: '';
-  position: absolute;
-  inset: -100%;
-  width: 300%;
-  height: 300%;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    rgba(59, 130, 246, 0.45) 45deg,
-    rgba(147, 197, 253, 1) 80deg,
-    transparent 135deg
-  );
-  animation: neon-rotate 2.5s linear infinite;
-  z-index: 0;
-}
-
-.neon-active::after {
-  content: '';
-  position: absolute;
-  inset: 1.5px;
-  background: #0b0d13;
-  border-radius: inherit;
-  z-index: 1;
-}
-
-.neon-active > * {
-  position: relative;
-  z-index: 2;
-}
-
-/* Generate button — pulse glow (original) */
-.generate-btn:not(:disabled) {
-  animation: pulse-glow 2s infinite;
 }
 
 .result-container {
