@@ -114,20 +114,20 @@ function App() {
       }
 
       // Step 2: Generate prompt via OpenAI (always)
-      let generatedPrompt = "Premium photorealistic fashion advertising photograph of elegant designer shoes worn on a female model's legs and feet, editorial street-style composition, shot on an 85mm lens, shallow depth of field, soft natural light, ultra-realistic textures, sharp focus, refined colour grading, magazine quality.";
+      let generatedPrompt = "Premium photorealistic fashion advertising photograph of elegant designer women's shoes worn on a female model's legs and feet, editorial street-style composition, shot on an 85mm lens, shallow depth of field, soft natural light, ultra-realistic textures, sharp focus, refined colour grading, magazine quality.";
 
       try {
-          let systemPromptText = "You are a world-class creative director and prompt engineer for luxury footwear advertising campaigns. ";
+          let systemPromptText = "You are a world-class creative director and prompt engineer for luxury women's footwear advertising campaigns. All uploaded product images always show a women's shoe, so the prompt must always treat the footwear as women's shoes. ";
           let contentItems = [];
           let nextImageIndex = 1;
 
           contentItems.push({ type: "image_url", image_url: { url: outerUrl } });
-          systemPromptText += `Image ${nextImageIndex} shows the outer profile of a shoe. `;
+          systemPromptText += `Image ${nextImageIndex} shows the outer profile of a women's shoe. `;
           nextImageIndex++;
 
           if (innerUrl) {
             contentItems.push({ type: "image_url", image_url: { url: innerUrl } });
-            systemPromptText += `Image ${nextImageIndex} shows the inner / top-down angle of the same shoe. `;
+            systemPromptText += `Image ${nextImageIndex} shows the inner / top-down angle of the same women's shoe. `;
             nextImageIndex++;
           }
 
@@ -136,9 +136,9 @@ function App() {
 
           if (referenceUrl) {
             contentItems.push({ type: "image_url", image_url: { url: referenceUrl } });
-            systemPromptText += `Image ${nextImageIndex} is a reference photo of a person. Write ONE highly detailed English prompt for an image-to-image AI model. Faithfully recreate the reference photo (Image ${nextImageIndex}) — exact same person, pose, body proportions, clothing, framing and mood — but REPLACE their footwear with the exact shoes from the earlier images. Describe the shoes with precise, true-to-source detail: material, finish, colour, stitching, sole, hardware and texture, so they look photorealistic and perfectly fitted on the feet. `;
+            systemPromptText += `Image ${nextImageIndex} is a reference photo of a person. Write ONE highly detailed English prompt for an image-to-image AI model. Faithfully recreate the reference photo (Image ${nextImageIndex}) — exact same person, pose, body proportions, clothing, framing and mood — but REPLACE their footwear with the exact women's shoes from the earlier images. Describe the shoes with precise, true-to-source detail: material, finish, colour, stitching, sole, hardware and texture, so they look photorealistic and perfectly fitted on the feet. `;
           } else {
-            systemPromptText += `Write ONE highly detailed English prompt for a premium AI image generation model. The prompt must describe a high-end fashion advertising photograph featuring the exact shoes from the image(s) above, worn on the feet of an elegant female fashion model. Frame the composition to focus ONLY on her legs and feet — her upper body and face MUST NOT be visible. Describe the shoes precisely and accurately (material, finish, colour, stitching, sole, hardware, texture). The pose must look natural, confident and editorial, like a luxury street-style or campaign shot. `;
+            systemPromptText += `Write ONE highly detailed English prompt for a premium AI image generation model. The prompt must describe a high-end fashion advertising photograph featuring the exact women's shoes from the image(s) above, worn on the feet of an elegant female fashion model. Frame the composition to focus ONLY on her legs and feet — her upper body and face MUST NOT be visible. Describe the shoes precisely and accurately (material, finish, colour, stitching, sole, hardware, texture). The pose must look natural, confident and editorial, like a luxury street-style or campaign shot. `;
           }
 
           if (locationHint) {
