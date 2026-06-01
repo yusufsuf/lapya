@@ -23,7 +23,7 @@ function App() {
 
   const [resultImgs, setResultImgs] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [toasts, setToasts] = useState([]);
 
   const [falKey] = useState(import.meta.env.VITE_FAL_KEY || '');
   const telegramBotToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN || '';
@@ -31,6 +31,50 @@ function App() {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+
+  const showToast = (message, type = 'error') => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 6000);
+  };
+
+  const removeToast = (id) => setToasts(prev => prev.filter(t => t.id !== id));
+
+  const friendlyError = (raw) => {
+    const msg = (raw || '').toLowerCase();
+    if (msg.includes('402') || msg.includes('insufficient') || msg.includes('credits'))
+      return 'Bakiyeniz tükenmiştir, fotoğraf üretilemedi.';
+    if (msg.includes('401') || msg.includes('unauthorized'))
+      return 'API anahtarı geçersiz veya eksik.';
+    if (msg.includes('429') || msg.includes('rate limit'))
+      return 'İstek limiti aşıldı, lütfen biraz bekleyin.';
+    if (msg.includes('zaman aşımı') || msg.includes('timeout'))
+      return 'Fotoğraf üretimi zaman aşımına uğradı, tekrar deneyin.';
+    if (msg.includes('generation failed') || msg.includes('üretim hatası') || msg.includes('501'))
+      return 'Fotoğraf üretimi başarısız oldu, tekrar deneyin.';
+    if (msg.includes('storage') || msg.includes('yüklenemedi'))
+      return 'Görsel yüklenirken hata oluştu.';
+    if (msg.includes('openai') || msg.includes('bağlantı hatası') || msg.includes('prompt'))
+      return 'Prompt oluşturulurken hata oluştu.';
+    if (msg.includes('taskid') || msg.includes('kie submit'))
+      return 'Görsel üretimi başlatılamadı, tekrar deneyin.';
+    return 'Beklenmeyen bir hata oluştu.';
+  };
+
+  const sendTelegramMessage = async (text) => {
+    if (!telegramBotToken || TELEGRAM_CHAT_IDS.length === 0) return;
+    for (const chatId of TELEGRAM_CHAT_IDS) {
+      try {
+        await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId.trim(), text }),
+        });
+      } catch (e) {
+        console.error('Telegram sendMessage hatası:', e);
+      }
+    }
+  };
 
   const handleFileChange = (e, setter) => {
     const file = e.target.files[0];
@@ -84,11 +128,10 @@ function App() {
   };
 
   const handleGenerate = async () => {
-    if (!falKey) { setError('FAL AI API anahtarı tanımlı değil.'); return; }
-    if (!outerShoe) { setError('En azından Dış Ayakkabı görüntüsü yüklenmelidir.'); return; }
+    if (!falKey) { showToast('FAL AI API anahtarı tanımlı değil.'); return; }
+    if (!outerShoe) { showToast('En azından Dış Ayakkabı görüntüsü yüklenmelidir.'); return; }
 
     setLoading(true);
-    setError(null);
     setResultImgs([]);
 
     try {
@@ -253,17 +296,21 @@ function App() {
               }
             }
             if (telegramFailures.length > 0) {
-              setError(`Görsel hazır ama Telegram gönderiminde sorun: ${telegramFailures.join(' | ')}`);
+              showToast(`Telegram gönderiminde sorun: ${telegramFailures.join(' | ')}`);
             }
           }
         }
       } else {
-        setError("Görüntü oluşturulamadı veya beklenen formatta dönmedi.");
+        const msg = 'Görüntü oluşturulamadı veya beklenen formatta dönmedi.';
+        showToast(msg);
+        sendTelegramMessage(`❌ ${msg}`);
       }
 
     } catch (err) {
       console.error(err);
-      setError('Bir hata oluştu: ' + (err.message || JSON.stringify(err)));
+      const msg = friendlyError(err.message);
+      showToast(msg);
+      sendTelegramMessage(`❌ Hata: ${msg}`);
     } finally {
       setLoading(false);
     }
@@ -290,6 +337,17 @@ function App() {
   );
 
   return (
+    <>
+    <div className="toast-container">
+      {toasts.map(t => (
+        <div key={t.id} className={`toast toast-${t.type}`}>
+          <span className="toast-message">{t.message}</span>
+          <button className="toast-close" onClick={() => removeToast(t.id)}>
+            <X size={16} />
+          </button>
+        </div>
+      ))}
+    </div>
     <div className="app-container">
       <header className="header">
         <h1 className="gradient-text">Lapya Trend</h1>
@@ -451,8 +509,6 @@ function App() {
             />
           </div>
 
-          {error && <div style={{color: 'var(--danger-color)', padding: '1rem', background: 'rgba(239,68,68,0.1)', borderRadius: '8px', marginTop: '1rem'}}>{error}</div>}
-
           <div className="actions">
             <button
               className="btn btn-primary generate-btn"
@@ -509,6 +565,7 @@ function App() {
         </section>
       </main>
     </div>
+    </>
   );
 }
 
