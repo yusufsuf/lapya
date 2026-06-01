@@ -27,7 +27,10 @@ function App() {
 
   const [falKey] = useState(import.meta.env.VITE_FAL_KEY || '');
   const telegramBotToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN || '';
-  const TELEGRAM_CHAT_IDS = ['7463074399'];
+  const TELEGRAM_CHAT_IDS = (import.meta.env.VITE_TELEGRAM_CHAT_IDS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   const handleFileChange = (e, setter) => {
     const file = e.target.files[0];
@@ -114,7 +117,7 @@ function App() {
       }
 
       // Step 2: Generate prompt via OpenAI (always)
-      let generatedPrompt = "Premium photorealistic fashion advertising photograph of elegant designer women's shoes worn on a female model's legs and feet, editorial street-style composition, shot on an 85mm lens, shallow depth of field, soft natural light, ultra-realistic textures, sharp focus, refined colour grading, magazine quality.";
+      let generatedPrompt = "Premium photorealistic fashion advertising photograph of elegant designer women's shoes worn on a female fashion model's legs and feet, smooth flawless hair-free model legs with even-toned healthy skin and no stubble or visible hair follicles, editorial street-style composition, shot on an 85mm lens, shallow depth of field, soft natural light, ultra-realistic textures, sharp focus, refined colour grading, magazine quality.";
 
       try {
           let systemPromptText = "You are a world-class creative director and prompt engineer for luxury women's footwear advertising campaigns. All uploaded product images always show a women's shoe, so the prompt must always treat the footwear as women's shoes. ";
@@ -138,14 +141,14 @@ function App() {
             contentItems.push({ type: "image_url", image_url: { url: referenceUrl } });
             systemPromptText += `Image ${nextImageIndex} is a reference photo of a person. Write ONE highly detailed English prompt for an image-to-image AI model. Faithfully recreate the reference photo (Image ${nextImageIndex}) — exact same person, pose, body proportions, clothing, framing and mood — but REPLACE their footwear with the exact women's shoes from the earlier images. Describe the shoes with precise, true-to-source detail: material, finish, colour, stitching, sole, hardware and texture, so they look photorealistic and perfectly fitted on the feet. `;
           } else {
-            systemPromptText += `Write ONE highly detailed English prompt for a premium AI image generation model. The prompt must describe a high-end fashion advertising photograph featuring the exact women's shoes from the image(s) above, worn on the feet of an elegant female fashion model. Frame the composition to focus ONLY on her legs and feet — her upper body and face MUST NOT be visible. Describe the shoes precisely and accurately (material, finish, colour, stitching, sole, hardware, texture). The pose must look natural, confident and editorial, like a luxury street-style or campaign shot. `;
+            systemPromptText += `Write ONE highly detailed English prompt for a premium AI image generation model. The prompt must describe a high-end fashion advertising photograph featuring the exact women's shoes from the image(s) above, worn on the feet of an elegant female fashion model. Frame the composition to focus ONLY on her legs and feet — her upper body and face MUST NOT be visible. Describe the shoes precisely and accurately (material, finish, colour, stitching, sole, hardware, texture). The pose must look natural, confident and editorial, like a luxury street-style or campaign shot. The model's legs MUST look like a real professional fashion model's legs: completely hair-free and naturally smooth, with flawless, even-toned skin — absolutely no stubble, no visible hair follicles, no razor irritation, no goosebumps, no ingrown hairs, no shaving rash, no blemishes and no pores that read as rough. The skin should look healthy, softly luminous and well cared for, yet still authentic and photorealistic — never airbrushed, waxy, plastic or CGI. `;
           }
 
           if (locationHint) {
             systemPromptText += `The scene MUST be set in this specific real-world location: "${locationHint}". Build an authentic, recognisable environment of that place — characteristic architecture, landmarks, surroundings, atmosphere and natural lighting that clearly identify it. `;
           }
 
-          systemPromptText += `Make the result cinematic and genuinely premium: photographed on a full-frame camera with an 85mm lens, shallow depth of field with tasteful background bokeh, soft natural directional light, true-to-life colours, ultra-realistic skin and material textures, crisp sharp focus on the shoes, refined professional colour grading, high dynamic range and magazine-quality composition. Strictly avoid any cartoonish, plastic, CGI, over-saturated or artificial look. `;
+          systemPromptText += `Make the result cinematic and genuinely premium: photographed on a full-frame camera with an 85mm lens, shallow depth of field with tasteful background bokeh, soft natural directional light, true-to-life colours, ultra-realistic material textures, crisp sharp focus on the shoes, refined professional colour grading, high dynamic range and magazine-quality composition. Any visible leg skin must always read as smooth, hair-free and flawless professional-model skin — never rough, stubbly, or with visible follicles. Strictly avoid any cartoonish, plastic, CGI, over-saturated or artificial look. `;
 
           if (userHint) {
             systemPromptText += `You MUST also naturally incorporate this user instruction into the prompt: "${userHint}". `;
@@ -213,17 +216,35 @@ function App() {
       if (urls.length > 0) {
         setResultImgs(urls);
         if (TELEGRAM_CHAT_IDS.length > 0) {
-          for (const url of urls) {
-            for (const chatId of TELEGRAM_CHAT_IDS) {
-              try {
-                await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendPhoto`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ chat_id: chatId.trim(), photo: url, caption: 'Görsel hazır! ✨' })
-                });
-              } catch (telErr) {
-                console.error(`Telegram error for ${chatId}:`, telErr);
+          if (!telegramBotToken) {
+            console.warn('Telegram: VITE_TELEGRAM_BOT_TOKEN tanımlı değil, gönderim atlanıyor.');
+            setError('Görsel hazır ama Telegram gönderilemedi: bot token (VITE_TELEGRAM_BOT_TOKEN) tanımlı değil.');
+          } else {
+            const telegramFailures = [];
+            for (const url of urls) {
+              for (const chatId of TELEGRAM_CHAT_IDS) {
+                try {
+                  const resp = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendPhoto`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: chatId.trim(), photo: url, caption: 'Görsel hazır! ✨' })
+                  });
+                  const data = await resp.json().catch(() => ({}));
+                  if (!resp.ok || data.ok === false) {
+                    const desc = data.description || `HTTP ${resp.status}`;
+                    console.error(`Telegram ${chatId} hata:`, desc, data);
+                    telegramFailures.push(`${chatId}: ${desc}`);
+                  } else {
+                    console.log(`Telegram ${chatId} -> gönderildi.`);
+                  }
+                } catch (telErr) {
+                  console.error(`Telegram ${chatId} fetch hatası:`, telErr);
+                  telegramFailures.push(`${chatId}: ${telErr.message || 'fetch hatası'}`);
+                }
               }
+            }
+            if (telegramFailures.length > 0) {
+              setError(`Görsel hazır ama Telegram gönderiminde sorun: ${telegramFailures.join(' | ')}`);
             }
           }
         }
