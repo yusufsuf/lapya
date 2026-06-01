@@ -177,41 +177,50 @@ function App() {
           throw new Error("OpenAI bağlantı hatası: " + (err.message || 'API anahtarını kontrol edin.'));
         }
 
-      // Step 3: Generate image
+      // Step 3: Generate image via KIE (nano-banana-2)
       const imageUrls = [outerUrl];
       if (innerUrl) imageUrls.push(innerUrl);
       if (referenceUrl) imageUrls.push(referenceUrl);
 
-      const inputs = {
+      const kieInput = {
         prompt: generatedPrompt,
-        image_urls: imageUrls,
+        image_input: imageUrls,
         aspect_ratio: aspect.value,
         resolution: resolution,
-        num_images: numImages,
         output_format: 'png',
       };
 
-      const result = await falAI.fal.subscribe('fal-ai/nano-banana-2/edit', {
-        input: inputs,
-        logs: true,
-        onQueueUpdate: (update) => {
-          if (update.status === 'IN_PROGRESS') {
-            update.logs.map((log) => log.message).forEach(console.log);
-          }
-        },
-      }).catch(e => {
-        throw new Error('Görsel oluşturma hatası (FAL AI): ' + e.message);
-      });
+      const generateOne = async () => {
+        const submitRes = await fetch('/api/kie/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(kieInput),
+        });
+        if (!submitRes.ok) {
+          const errBody = await submitRes.json().catch(() => ({}));
+          throw new Error(`KIE submit hatası (${submitRes.status}): ${errBody.error || ''}`);
+        }
+        const { taskId } = await submitRes.json();
+        if (!taskId) throw new Error('KIE submit yanıtında taskId yok');
 
-      let urls = [];
-      if (result.data?.images?.length > 0) {
-        urls = result.data.images.map(img => img.url);
-      } else if (result.data?.image?.url) {
-        urls = [result.data.image.url];
-      } else {
-        const fallback = Object.values(result.data).find(v => typeof v === 'string' && v.startsWith('http'));
-        if (fallback) urls = [fallback];
-      }
+        // Poll status — every 4s, max ~10 min
+        for (let attempt = 0; attempt < 150; attempt++) {
+          await new Promise((r) => setTimeout(r, 4000));
+          const statusRes = await fetch(`/api/kie/status/${taskId}`);
+          if (!statusRes.ok) continue;
+          const status = await statusRes.json();
+          if (status.state === 'success') return status.resultUrls || [];
+          if (status.state === 'fail') {
+            throw new Error(`KIE üretim hatası: ${status.failMsg || status.failCode || 'bilinmeyen'}`);
+          }
+        }
+        throw new Error('KIE zaman aşımı (10 dakika içinde sonuç gelmedi)');
+      };
+
+      const taskResults = await Promise.all(
+        Array.from({ length: numImages }, () => generateOne())
+      );
+      const urls = taskResults.flat();
 
       if (urls.length > 0) {
         setResultImgs(urls);
