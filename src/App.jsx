@@ -10,6 +10,21 @@ const ASPECT_OPTIONS = [
   { label: 'Kare',  shape: { w: 22, h: 22 }, value: '1:1' },
 ];
 
+const MAX_OUTPUTS = 10;
+
+// Distinct camera angles / poses so a multi-output request returns varied shots
+// of the same shoe instead of near-identical frames.
+const ANGLE_VARIATIONS = [
+  'Render THIS frame as a clean full side profile of the legs and feet, the shoe shown in lateral view, model standing naturally.',
+  'Render THIS frame from a low three-quarter front angle looking slightly upward, a confident dynamic stance with both shoes clearly visible.',
+  'Render THIS frame as a tight close-up / macro on the shoes from a three-quarter angle, emphasising the material, texture and detailing, with only the lower legs visible.',
+  'Render THIS frame from a high angle looking down at the feet and shoes on the ground, with an elegant crossed-leg or pointed-toe pose.',
+  'Render THIS frame from behind, showing the heels and the back of the shoes, the model captured mid-step walking away.',
+  'Render THIS frame from a frontal angle with the model stepping forward and one foot lifted in natural walking motion.',
+  'Render THIS frame as a relaxed seated editorial pose, the legs elegantly angled and the shoes shown from a soft three-quarter view.',
+  'Render THIS frame as a ground-level hero angle very close to the surface, the shoes large and prominent in the foreground with shallow depth of field.',
+];
+
 function App() {
   const [innerShoe, setInnerShoe] = useState(null);
   const [outerShoe, setOuterShoe] = useState(null);
@@ -187,7 +202,7 @@ function App() {
           }
 
           if (locationHint) {
-            systemPromptText += `The scene MUST be set in this specific real-world location: "${locationHint}". Build an authentic, recognisable environment of that place — characteristic architecture, landmarks, surroundings, atmosphere and natural lighting that clearly identify it. `;
+            systemPromptText += `The scene MUST be set in this specific real-world location: "${locationHint}". Convey the location ONLY through its real visual elements — the actual landmark itself, characteristic architecture, surroundings, atmosphere and natural lighting. NEVER identify the place using any written text, place-name sign, plaque, engraving, stone tablet, label or caption; the location must be recognisable purely from the imagery, with no words anywhere. `;
           }
 
           systemPromptText += `Make the result cinematic and genuinely premium: photographed on a full-frame camera with an 85mm lens, shallow depth of field with tasteful background bokeh, soft natural directional light, true-to-life colours, ultra-realistic material textures, crisp sharp focus on the shoes, refined professional colour grading, high dynamic range and magazine-quality composition. Any visible leg skin must always read as smooth, hair-free and flawless professional-model skin — never rough, stubbly, or with visible follicles. Strictly avoid any cartoonish, plastic, CGI, over-saturated or artificial look. `;
@@ -196,7 +211,9 @@ function App() {
             systemPromptText += `You MUST also naturally incorporate this user instruction into the prompt: "${userHint}". `;
           }
 
-          systemPromptText += `The generated image MUST contain absolutely NO text of any kind — no letters, words, captions, labels, signage, logos, watermarks, brand names, numbers or typography anywhere in the frame. Explicitly state this no-text requirement inside the prompt you write. `;
+          systemPromptText += `CRITICAL FIDELITY: reproduce the uploaded shoe EXACTLY as it appears — identical shape, colour, finish, material and perforation/pattern. Do NOT add, remove, alter or invent any detail. In particular, do NOT add any logo, brand name, metal tag, badge, plaque, buckle, stud, charm, embellishment or hardware that is not clearly visible on the uploaded shoe; if the real shoe has no such element, the generated shoe must have none either. `;
+
+          systemPromptText += `The generated image MUST contain absolutely NO text of any kind — no letters, words, captions, labels, place-name signs, street signs, shop signs, engraved plaques, stone tablets, posters, logos, watermarks, brand names, numbers or typography anywhere in the frame. Explicitly state this no-text requirement inside the prompt you write. `;
 
           systemPromptText += `Output ONLY the final English prompt as a single plain-text paragraph — no preamble, no quotes, no labels, no formatting.`;
 
@@ -215,7 +232,7 @@ function App() {
           }
           const aiData = await aiRes.json();
           generatedPrompt = aiData.prompt;
-          console.log("Generated Prompt:", generatedPrompt);
+          console.log("OpenAI raw prompt:", generatedPrompt);
         } catch (err) {
           console.error("OpenAI Error:", err);
           throw new Error("OpenAI bağlantı hatası: " + (err.message || 'API anahtarını kontrol edin.'));
@@ -224,11 +241,13 @@ function App() {
       // Guarantee the chosen location is present in the final prompt,
       // regardless of how OpenAI phrased its output.
       if (locationHint && !generatedPrompt.toLowerCase().includes(locationHint.toLowerCase())) {
-        generatedPrompt += ` The entire scene is set in ${locationHint}, with an authentic, recognisable environment of that place — its characteristic architecture, landmarks, surroundings and natural lighting clearly identifying it.`;
+        generatedPrompt += ` The entire scene is set in ${locationHint}, recognisable purely through its real landmark, architecture, surroundings and natural lighting — never through any written place name, sign, plaque, engraving or text.`;
       }
 
-      // Always guarantee a strict no-text instruction reaches the image model.
-      generatedPrompt += ` Absolutely no text, letters, words, captions, labels, signage, logos, watermarks, brand names, numbers or typography anywhere in the image — the result must be a purely photographic image with no written characters at all.`;
+      // Always guarantee strict no-text + shoe-fidelity instructions reach the image model.
+      generatedPrompt += ` The depicted shoe must match the uploaded product shoe exactly, with no added logos, metal tags, badges, buckles, hardware or embellishments that are not on the original. Absolutely no text of any kind anywhere in the image — no letters, words, captions, labels, place-name signs, street signs, shop signs, engraved plaques, stone tablets, posters, logos, watermarks, brand names or numbers; the result must be a purely photographic image with zero written characters.`;
+
+      console.log("Final prompt sent to KIE:", generatedPrompt);
 
       // Step 3: Generate image via KIE (nano-banana-2)
       const imageUrls = [outerUrl];
@@ -243,11 +262,18 @@ function App() {
         output_format: 'png',
       };
 
-      const generateOne = async () => {
+      const generateOne = async (index) => {
+        // Each output gets a different camera angle / pose so a multi-shot request
+        // returns varied views of the same shoe — skipped when recreating a
+        // reference photo (its pose must stay fixed) or for a single output.
+        let taskPrompt = generatedPrompt;
+        if (!referenceUrl && numImages > 1) {
+          taskPrompt += ' ' + ANGLE_VARIATIONS[index % ANGLE_VARIATIONS.length];
+        }
         const submitRes = await fetch('/api/kie/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(kieInput),
+          body: JSON.stringify({ ...kieInput, prompt: taskPrompt }),
         });
         if (!submitRes.ok) {
           const errBody = await submitRes.json().catch(() => ({}));
@@ -271,7 +297,7 @@ function App() {
       };
 
       const taskResults = await Promise.all(
-        Array.from({ length: numImages }, () => generateOne())
+        Array.from({ length: numImages }, (_, i) => generateOne(i))
       );
       const urls = taskResults.flat();
 
@@ -428,26 +454,37 @@ function App() {
             </div>
           </div>
 
-          {/* Num Images Selector */}
+          {/* Output / Angle Count */}
           <div style={{ marginTop: '1.25rem' }}>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Çıktı Adeti</p>
-            <div style={{ display: 'flex', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', overflow: 'hidden' }}>
-              {[1, 2, 3, 4].map((n, i) => (
-                <button
-                  key={n}
-                  onClick={() => setNumImages(n)}
-                  className={numImages === n ? 'neon-active' : ''}
-                  style={{
-                    flex: 1, padding: '0.6rem', border: 'none',
-                    borderRight: i < 3 ? '1px solid rgba(255,255,255,0.12)' : 'none',
-                    background: 'transparent',
-                    color: numImages === n ? '#fff' : 'var(--text-secondary)',
-                    fontWeight: numImages === n ? '600' : '400',
-                    cursor: 'pointer', fontSize: '0.9rem', transition: 'color 0.2s',
-                  }}
-                ><span>{n}</span></button>
-              ))}
-            </div>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+              Açı / Çıktı Sayısı <span style={{ opacity: 0.6 }}>(kaç farklı açıda görsel üretilsin, 1–{MAX_OUTPUTS})</span>
+            </p>
+            <input
+              type="number"
+              min={1}
+              max={MAX_OUTPUTS}
+              value={numImages}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                if (Number.isNaN(v)) { setNumImages(1); return; }
+                setNumImages(Math.max(1, Math.min(MAX_OUTPUTS, v)));
+              }}
+              style={{
+                width: '100%',
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '10px',
+                color: 'var(--text-primary, #fff)',
+                padding: '0.75rem',
+                fontSize: '0.85rem',
+                outline: 'none',
+                fontFamily: 'inherit',
+                boxSizing: 'border-box',
+              }}
+            />
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', opacity: 0.7, display: 'block', marginTop: '0.4rem' }}>
+              Birden fazla girilirse her görsel ayakkabıyı farklı açı ve pozda gösterir.
+            </span>
           </div>
 
           {/* Location */}
