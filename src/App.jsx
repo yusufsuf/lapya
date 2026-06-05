@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Image as ImageIcon, Sparkles, X, Camera, Fingerprint, Download } from 'lucide-react';
-import * as falAI from '@fal-ai/client';
 import './App.css';
 
 const RESOLUTION_OPTIONS = ['1K', '2K', '4K'];
@@ -24,13 +23,6 @@ function App() {
   const [resultImgs, setResultImgs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toasts, setToasts] = useState([]);
-
-  const [falKey] = useState(import.meta.env.VITE_FAL_KEY || '');
-  const telegramBotToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN || '';
-  const TELEGRAM_CHAT_IDS = (import.meta.env.VITE_TELEGRAM_CHAT_IDS || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
 
   const showToast = (message, type = 'error') => {
     const id = Date.now() + Math.random();
@@ -61,18 +53,17 @@ function App() {
     return 'Beklenmeyen bir hata oluştu.';
   };
 
+  // Telegram delivery is handled server-side (/api/telegram/send): keeps the bot
+  // token off the client, avoids browser CORS, and uploads large images as files.
   const sendTelegramMessage = async (text) => {
-    if (!telegramBotToken || TELEGRAM_CHAT_IDS.length === 0) return;
-    for (const chatId of TELEGRAM_CHAT_IDS) {
-      try {
-        await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId.trim(), text }),
-        });
-      } catch (e) {
-        console.error('Telegram sendMessage hatası:', e);
-      }
+    try {
+      await fetch('/api/telegram/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+    } catch (e) {
+      console.error('Telegram mesaj hatası:', e);
     }
   };
 
@@ -127,43 +118,51 @@ function App() {
     });
   };
 
+  const fileToBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result); // data URL (KIE accepts data URL or pure base64)
+    reader.onerror = () => reject(new Error('Dosya okunamadı'));
+    reader.readAsDataURL(file);
+  });
+
+  // Upload an image to KIE storage (via our server) and return a public URL.
+  const uploadImage = async (file, label) => {
+    const compressed = await compressImage(file);
+    const base64Data = await fileToBase64(compressed);
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base64Data, fileName: compressed.name || 'image.jpg' }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(`${label} yüklenemedi: ${body.error || `HTTP ${res.status}`}`);
+    }
+    const { url } = await res.json();
+    if (!url) throw new Error(`${label} yüklenemedi: sunucudan URL gelmedi`);
+    return url;
+  };
+
   const handleGenerate = async () => {
-    if (!falKey) { showToast('FAL AI API anahtarı tanımlı değil.'); return; }
     if (!outerShoe) { showToast('En azından Dış Ayakkabı görüntüsü yüklenmelidir.'); return; }
 
     setLoading(true);
     setResultImgs([]);
 
+    const userHint = customPrompt.trim();
+    const locationHint = location.trim();
+
     try {
-      falAI.fal.config({ credentials: falKey });
-
-      // Step 1: Upload images
-      let outerFile = await compressImage(outerShoe.file);
-      const outerUrl = await falAI.fal.storage.upload(outerFile).catch(e => {
-        throw new Error('Görsel yüklenemedi (FAL Storage). (' + e.message + ')');
-      });
-
-      let innerUrl = null;
-      if (innerShoe) {
-        let innerFile = await compressImage(innerShoe.file);
-        innerUrl = await falAI.fal.storage.upload(innerFile).catch(e => {
-          throw new Error('İç ayakkabı görseli yüklenemedi. (' + e.message + ')');
-        });
-      }
-
-      let referenceUrl = null;
-      if (referenceImg) {
-        let refFile = await compressImage(referenceImg.file);
-        referenceUrl = await falAI.fal.storage.upload(refFile).catch(e => {
-          throw new Error('Referans görseli yüklenemedi. (' + e.message + ')');
-        });
-      }
+      // Step 1: Upload images to KIE storage
+      const outerUrl = await uploadImage(outerShoe.file, 'Dış ayakkabı görseli');
+      let innerUrl = innerShoe ? await uploadImage(innerShoe.file, 'İç ayakkabı görseli') : null;
+      let referenceUrl = referenceImg ? await uploadImage(referenceImg.file, 'Referans görseli') : null;
 
       // Step 2: Generate prompt via OpenAI (always)
       let generatedPrompt = "Premium photorealistic fashion advertising photograph of elegant designer women's shoes worn on a female fashion model's legs and feet, smooth flawless hair-free model legs with even-toned healthy skin and no stubble or visible hair follicles, editorial street-style composition, shot on an 85mm lens, shallow depth of field, soft natural light, ultra-realistic textures, sharp focus, refined colour grading, magazine quality.";
 
       try {
-          let systemPromptText = "You are a world-class creative director and prompt engineer for luxury women's footwear advertising campaigns. All uploaded product images always show a women's shoe, so the prompt must always treat the footwear as women's shoes. ";
+          let systemPromptText = "You are a world-class creative director and prompt engineer for luxury women's footwear advertising campaigns. FIRST, carefully study and analyse the uploaded shoe image(s) in detail before writing anything: identify the exact shoe type and silhouette (e.g. heeled sandal, stiletto, block heel, ballet flat, loafer, mule, boot, sneaker), the precise colour(s) and finish (matte, glossy, metallic, patent, suede), the material and texture, the heel shape and height, the toe shape, any straps, buckles, laces, embellishments, stitching, the sole and any hardware. Base your ENTIRE prompt STRICTLY on what you actually observe in the images — reproduce the real shoe faithfully and accurately, and never invent, generalise, guess or substitute a different shoe. All uploaded product images always show a women's shoe, so the prompt must always treat the footwear as women's shoes. ";
           let contentItems = [];
           let nextImageIndex = 1;
 
@@ -177,12 +176,12 @@ function App() {
             nextImageIndex++;
           }
 
-          const userHint = customPrompt.trim();
-          const locationHint = location.trim();
-
           if (referenceUrl) {
             contentItems.push({ type: "image_url", image_url: { url: referenceUrl } });
-            systemPromptText += `Image ${nextImageIndex} is a reference photo of a person. Write ONE highly detailed English prompt for an image-to-image AI model. Faithfully recreate the reference photo (Image ${nextImageIndex}) — exact same person, pose, body proportions, clothing, framing and mood — but REPLACE their footwear with the exact women's shoes from the earlier images. Describe the shoes with precise, true-to-source detail: material, finish, colour, stitching, sole, hardware and texture, so they look photorealistic and perfectly fitted on the feet. `;
+            systemPromptText += `Image ${nextImageIndex} is a reference photo of a person. Write ONE highly detailed English prompt for an image-to-image AI model. Faithfully recreate the reference photo (Image ${nextImageIndex}) — exact same person, pose, body proportions, clothing and mood — but REPLACE their footwear with the exact women's shoes from the earlier images. Describe the shoes with precise, true-to-source detail: material, finish, colour, stitching, sole, hardware and texture, so they look photorealistic and perfectly fitted on the feet. `;
+            if (locationHint) {
+              systemPromptText += `IMPORTANT: change the background/setting of the recreated scene to the location described below (do NOT keep the reference photo's original background). `;
+            }
           } else {
             systemPromptText += `Write ONE highly detailed English prompt for a premium AI image generation model. The prompt must describe a high-end fashion advertising photograph featuring the exact women's shoes from the image(s) above, worn on the feet of an elegant female fashion model. Frame the composition to focus ONLY on her legs and feet — her upper body and face MUST NOT be visible. Describe the shoes precisely and accurately (material, finish, colour, stitching, sole, hardware, texture). The pose must look natural, confident and editorial, like a luxury street-style or campaign shot. The model's legs MUST look like a real professional fashion model's legs: completely hair-free and naturally smooth, with flawless, even-toned skin — absolutely no stubble, no visible hair follicles, no razor irritation, no goosebumps, no ingrown hairs, no shaving rash, no blemishes and no pores that read as rough. The skin should look healthy, softly luminous and well cared for, yet still authentic and photorealistic — never airbrushed, waxy, plastic or CGI. `;
           }
@@ -196,6 +195,8 @@ function App() {
           if (userHint) {
             systemPromptText += `You MUST also naturally incorporate this user instruction into the prompt: "${userHint}". `;
           }
+
+          systemPromptText += `The generated image MUST contain absolutely NO text of any kind — no letters, words, captions, labels, signage, logos, watermarks, brand names, numbers or typography anywhere in the frame. Explicitly state this no-text requirement inside the prompt you write. `;
 
           systemPromptText += `Output ONLY the final English prompt as a single plain-text paragraph — no preamble, no quotes, no labels, no formatting.`;
 
@@ -219,6 +220,15 @@ function App() {
           console.error("OpenAI Error:", err);
           throw new Error("OpenAI bağlantı hatası: " + (err.message || 'API anahtarını kontrol edin.'));
         }
+
+      // Guarantee the chosen location is present in the final prompt,
+      // regardless of how OpenAI phrased its output.
+      if (locationHint && !generatedPrompt.toLowerCase().includes(locationHint.toLowerCase())) {
+        generatedPrompt += ` The entire scene is set in ${locationHint}, with an authentic, recognisable environment of that place — its characteristic architecture, landmarks, surroundings and natural lighting clearly identifying it.`;
+      }
+
+      // Always guarantee a strict no-text instruction reaches the image model.
+      generatedPrompt += ` Absolutely no text, letters, words, captions, labels, signage, logos, watermarks, brand names, numbers or typography anywhere in the image — the result must be a purely photographic image with no written characters at all.`;
 
       // Step 3: Generate image via KIE (nano-banana-2)
       const imageUrls = [outerUrl];
@@ -267,38 +277,20 @@ function App() {
 
       if (urls.length > 0) {
         setResultImgs(urls);
-        if (TELEGRAM_CHAT_IDS.length > 0) {
-          if (!telegramBotToken) {
-            console.warn('Telegram: VITE_TELEGRAM_BOT_TOKEN tanımlı değil, gönderim atlanıyor.');
-            setError('Görsel hazır ama Telegram gönderilemedi: bot token (VITE_TELEGRAM_BOT_TOKEN) tanımlı değil.');
-          } else {
-            const telegramFailures = [];
-            for (const url of urls) {
-              for (const chatId of TELEGRAM_CHAT_IDS) {
-                try {
-                  const resp = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendPhoto`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chat_id: chatId.trim(), photo: url, caption: 'Görsel hazır! ✨' })
-                  });
-                  const data = await resp.json().catch(() => ({}));
-                  if (!resp.ok || data.ok === false) {
-                    const desc = data.description || `HTTP ${resp.status}`;
-                    console.error(`Telegram ${chatId} hata:`, desc, data);
-                    telegramFailures.push(`${chatId}: ${desc}`);
-                  } else {
-                    console.log(`Telegram ${chatId} -> gönderildi.`);
-                  }
-                } catch (telErr) {
-                  console.error(`Telegram ${chatId} fetch hatası:`, telErr);
-                  telegramFailures.push(`${chatId}: ${telErr.message || 'fetch hatası'}`);
-                }
-              }
-            }
-            if (telegramFailures.length > 0) {
-              showToast(`Telegram gönderiminde sorun: ${telegramFailures.join(' | ')}`);
-            }
+        try {
+          const tgRes = await fetch('/api/telegram/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urls }),
+          });
+          const tgData = await tgRes.json().catch(() => ({}));
+          if (tgData.failures?.length > 0) {
+            console.error('Telegram gönderim hataları:', tgData.failures);
+            showToast(`Telegram gönderiminde sorun: ${tgData.failures.join(' | ')}`);
           }
+        } catch (telErr) {
+          console.error('Telegram gönderim isteği hatası:', telErr);
+          showToast('Görseller hazır ama Telegram\'a gönderilemedi.');
         }
       } else {
         const msg = 'Görüntü oluşturulamadı veya beklenen formatta dönmedi.';
