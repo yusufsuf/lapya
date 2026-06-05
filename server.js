@@ -191,6 +191,38 @@ app.post('/api/telegram/send', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Proxy a generated image back to the browser as a forced download. Browsers
+// block a direct fetch().blob() of the cross-origin KIE result (no CORS headers),
+// so the download silently fails; streaming it through here is same-origin.
+const DOWNLOAD_ALLOWED_HOSTS = ['redpandaai.co', 'kie.ai', 'aiquickdraw.com'];
+
+app.get('/api/download', async (req, res) => {
+  const raw = req.query.url;
+  if (!raw) return res.status(400).json({ error: 'url eksik' });
+
+  let target;
+  try { target = new URL(raw); } catch { return res.status(400).json({ error: 'geçersiz url' }); }
+  if (target.protocol !== 'https:' && target.protocol !== 'http:') {
+    return res.status(400).json({ error: 'geçersiz protokol' });
+  }
+  const host = target.hostname.toLowerCase();
+  const allowed = DOWNLOAD_ALLOWED_HOSTS.some((h) => host === h || host.endsWith('.' + h));
+  if (!allowed) return res.status(403).json({ error: 'bu kaynaktan indirme izinli değil' });
+
+  try {
+    const r = await fetch(target.href);
+    if (!r.ok) return res.status(r.status).json({ error: `HTTP ${r.status}` });
+    const contentType = r.headers.get('content-type') || 'image/png';
+    const ext = contentType.includes('jpeg') ? 'jpg' : contentType.includes('webp') ? 'webp' : 'png';
+    const buf = Buffer.from(await r.arrayBuffer());
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="lapya-${Date.now()}.${ext}"`);
+    res.send(buf);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('*', (_req, res) => {
   res.sendFile(join(__dirname, 'dist', 'index.html'));
 });

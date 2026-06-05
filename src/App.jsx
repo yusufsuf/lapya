@@ -93,21 +93,14 @@ function App() {
     setter(null);
   };
 
-  const triggerDownload = async (url) => {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = `lapya-${new Date().getTime()}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
-    } catch (e) {
-      console.error("Download failed", e);
-    }
+  const triggerDownload = (url) => {
+    // Route through our server so the cross-origin image is streamed back with an
+    // attachment header — a direct fetch/blob is blocked by CORS and silently fails.
+    const link = document.createElement('a');
+    link.href = `/api/download?url=${encodeURIComponent(url)}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const compressImage = (file, maxSizeMB = 3) => {
